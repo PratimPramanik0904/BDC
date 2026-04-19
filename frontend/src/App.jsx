@@ -4,12 +4,14 @@ cd bdc-mock && npm install
 npm run dev
 */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const API_BASE = "http://localhost:5000";
 
 function App() {
   const [role, setRole] = useState("admin");
+  const [activeTab, setActiveTab] = useState("catalog");
+
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState("");
@@ -25,6 +27,14 @@ function App() {
   const [totalOrders, setTotalOrders] = useState("--");
   const [latePaymentsPct, setLatePaymentsPct] = useState("--");
   const [avgNetValue, setAvgNetValue] = useState("--");
+
+  const [customerId, setCustomerId] = useState("");
+  const [orderAmount, setOrderAmount] = useState("");
+  const [region, setRegion] = useState("");
+  const [insightLoading, setInsightLoading] = useState(false);
+  const [insightError, setInsightError] = useState("");
+  const [insightForbidden, setInsightForbidden] = useState(false);
+  const [insightResult, setInsightResult] = useState(null);
 
   const apiFetch = (path, options = {}) => {
     return fetch(`${API_BASE}${path}`, {
@@ -160,10 +170,60 @@ function App() {
     }
   };
 
-  const previewColumns = useMemo(() => {
-    if (previewRows.length === 0) return [];
-    return Object.keys(previewRows[0]);
-  }, [previewRows]);
+  const handlePredictRisk = async (event) => {
+    event.preventDefault();
+
+    if (!customerId || !orderAmount || !region) {
+      return;
+    }
+
+    setInsightLoading(true);
+    setInsightError("");
+    setInsightForbidden(false);
+    setInsightResult(null);
+
+    try {
+      const response = await apiFetch("/api/insights/payment-risk", {
+        method: "POST",
+        body: JSON.stringify({
+          customer_id: Number(customerId),
+          order_amount: Number(orderAmount),
+          region,
+        }),
+      });
+
+      const payload = await response.json();
+
+      if (response.status === 403) {
+        setInsightForbidden(true);
+        return;
+      }
+
+      if (!response.ok || payload.status !== "success") {
+        throw new Error(payload.message || "Failed to get risk prediction.");
+      }
+
+      setInsightResult(payload.data || null);
+    } catch (error) {
+      setInsightError(error.message || "Unexpected error while predicting risk.");
+    } finally {
+      setInsightLoading(false);
+    }
+  };
+
+  const previewColumns = previewRows.length > 0 ? Object.keys(previewRows[0]) : [];
+
+  const predictDisabled = !customerId || !orderAmount || !region || insightLoading;
+
+  const riskLevel = insightResult?.risk_level || "";
+  const badgeColor =
+    riskLevel === "Low"
+      ? "#22c55e"
+      : riskLevel === "Medium"
+        ? "#f59e0b"
+        : riskLevel === "High"
+          ? "#ef4444"
+          : "#64748b";
 
   useEffect(() => {
     loadDashboard();
@@ -190,6 +250,17 @@ function App() {
         .grid {
           display: grid;
           gap: 16px;
+        }
+        .spinner {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          border: 2px solid rgba(255,255,255,0.45);
+          border-top-color: #ffffff;
+          animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
         @media (max-width: 900px) {
           .kpi-grid { grid-template-columns: 1fr !important; }
@@ -219,95 +290,209 @@ function App() {
         </div>
       </header>
 
-      <section className="grid kpi-grid" style={styles.kpiGrid}>
-        <div className="card" style={styles.kpiCard}>
-          <div style={styles.kpiLabel}>Total Orders</div>
-          <div style={styles.kpiValue}>{kpiLoading ? "..." : totalOrders}</div>
-        </div>
-        <div className="card" style={styles.kpiCard}>
-          <div style={styles.kpiLabel}>Late Payments %</div>
-          <div style={styles.kpiValue}>{kpiLoading ? "..." : latePaymentsPct}</div>
-        </div>
-        <div className="card" style={styles.kpiCard}>
-          <div style={styles.kpiLabel}>Avg Net Value</div>
-          <div style={styles.kpiValue}>{kpiLoading ? "..." : avgNetValue}</div>
-        </div>
-      </section>
+      <nav className="card" style={styles.tabBar}>
+        <button
+          type="button"
+          style={{ ...styles.tabButton, ...(activeTab === "catalog" ? styles.tabButtonActive : {}) }}
+          onClick={() => setActiveTab("catalog")}
+        >
+          Data Catalog
+        </button>
+        <button
+          type="button"
+          style={{ ...styles.tabButton, ...(activeTab === "insights" ? styles.tabButtonActive : {}) }}
+          onClick={() => setActiveTab("insights")}
+        >
+          AI Insights
+        </button>
+      </nav>
 
-      {productsForbidden && (
-        <div style={{ ...styles.alert, ...styles.alertForbidden }}>Forbidden: invalid or missing role access.</div>
-      )}
-      {productsError && <div style={{ ...styles.alert, ...styles.alertError }}>{productsError}</div>}
-      {productsLoading && <div style={{ ...styles.alert, ...styles.alertInfo }}>Loading data products...</div>}
+      {activeTab === "catalog" && (
+        <>
+          <section className="grid kpi-grid" style={styles.kpiGrid}>
+            <div className="card" style={styles.kpiCard}>
+              <div style={styles.kpiLabel}>Total Orders</div>
+              <div style={styles.kpiValue}>{kpiLoading ? "..." : totalOrders}</div>
+            </div>
+            <div className="card" style={styles.kpiCard}>
+              <div style={styles.kpiLabel}>Late Payments %</div>
+              <div style={styles.kpiValue}>{kpiLoading ? "..." : latePaymentsPct}</div>
+            </div>
+            <div className="card" style={styles.kpiCard}>
+              <div style={styles.kpiLabel}>Avg Net Value</div>
+              <div style={styles.kpiValue}>{kpiLoading ? "..." : avgNetValue}</div>
+            </div>
+          </section>
 
-      {!selectedProduct && !productsLoading && !productsForbidden && (
-        <section className="grid product-grid" style={styles.productGrid}>
-          {products.map((product) => (
-            <article key={product.name} className="card" style={styles.productCard}>
-              <h3 style={styles.productTitle}>{product.name}</h3>
-              <p style={styles.productMeta}><strong>Rows:</strong> {product.row_count}</p>
-              <p style={styles.productMeta}><strong>Updated:</strong> {product.last_updated || "N/A"}</p>
-              <button style={styles.button} onClick={() => handleViewDetails(product.name)}>
-                View Details
-              </button>
-            </article>
-          ))}
-          {products.length === 0 && (
-            <div style={{ ...styles.alert, ...styles.alertInfo }}>No data products available for this role.</div>
+          {productsForbidden && (
+            <div style={{ ...styles.alert, ...styles.alertForbidden }}>Forbidden: invalid or missing role access.</div>
           )}
-        </section>
-      )}
+          {productsError && <div style={{ ...styles.alert, ...styles.alertError }}>{productsError}</div>}
+          {productsLoading && <div style={{ ...styles.alert, ...styles.alertInfo }}>Loading data products...</div>}
 
-      {selectedProduct && (
-        <section className="card" style={styles.previewSection}>
-          <div style={styles.previewHeader}>
-            <h2 style={styles.previewTitle}>Preview: {selectedProduct}</h2>
-            <button
-              style={{ ...styles.button, ...styles.buttonSecondary }}
-              onClick={() => {
-                setSelectedProduct(null);
-                setPreviewRows([]);
-                setPreviewError("");
-                setPreviewForbidden(false);
-              }}
-            >
-              Back
-            </button>
-          </div>
-
-          {previewLoading && <div style={{ ...styles.alert, ...styles.alertInfo }}>Loading preview...</div>}
-          {previewForbidden && (
-            <div style={{ ...styles.alert, ...styles.alertForbidden }}>Forbidden: your role cannot access this data product.</div>
+          {!selectedProduct && !productsLoading && !productsForbidden && (
+            <section className="grid product-grid" style={styles.productGrid}>
+              {products.map((product) => (
+                <article key={product.name} className="card" style={styles.productCard}>
+                  <h3 style={styles.productTitle}>{product.name}</h3>
+                  <p style={styles.productMeta}><strong>Rows:</strong> {product.row_count}</p>
+                  <p style={styles.productMeta}><strong>Updated:</strong> {product.last_updated || "N/A"}</p>
+                  <button style={styles.button} onClick={() => handleViewDetails(product.name)}>
+                    View Details
+                  </button>
+                </article>
+              ))}
+              {products.length === 0 && (
+                <div style={{ ...styles.alert, ...styles.alertInfo }}>No data products available for this role.</div>
+              )}
+            </section>
           )}
-          {previewError && <div style={{ ...styles.alert, ...styles.alertError }}>{previewError}</div>}
 
-          {!previewLoading && !previewForbidden && !previewError && previewRows.length > 0 && (
-            <div style={styles.tableWrap}>
-              <table style={styles.table}>
-                <thead>
-                  <tr>
-                    {previewColumns.map((column) => (
-                      <th key={column} style={styles.th}>{column}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.slice(0, 10).map((row, index) => (
-                    <tr key={index}>
-                      {previewColumns.map((column) => (
-                        <td key={`${index}-${column}`} style={styles.td}>
-                          {String(row[column] ?? "")}
-                        </td>
+          {selectedProduct && (
+            <section className="card" style={styles.previewSection}>
+              <div style={styles.previewHeader}>
+                <h2 style={styles.previewTitle}>Preview: {selectedProduct}</h2>
+                <button
+                  style={{ ...styles.button, ...styles.buttonSecondary }}
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setPreviewRows([]);
+                    setPreviewError("");
+                    setPreviewForbidden(false);
+                  }}
+                >
+                  Back
+                </button>
+              </div>
+
+              {previewLoading && <div style={{ ...styles.alert, ...styles.alertInfo }}>Loading preview...</div>}
+              {previewForbidden && (
+                <div style={{ ...styles.alert, ...styles.alertForbidden }}>Forbidden: your role cannot access this data product.</div>
+              )}
+              {previewError && <div style={{ ...styles.alert, ...styles.alertError }}>{previewError}</div>}
+
+              {!previewLoading && !previewForbidden && !previewError && previewRows.length > 0 && (
+                <div style={styles.tableWrap}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        {previewColumns.map((column) => (
+                          <th key={column} style={styles.th}>{column}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewRows.slice(0, 10).map((row, index) => (
+                        <tr key={index}>
+                          {previewColumns.map((column) => (
+                            <td key={`${index}-${column}`} style={styles.td}>
+                              {String(row[column] ?? "")}
+                            </td>
+                          ))}
+                        </tr>
                       ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {!previewLoading && !previewForbidden && !previewError && previewRows.length === 0 && (
+                <div style={{ ...styles.alert, ...styles.alertInfo }}>No preview rows available.</div>
+              )}
+            </section>
+          )}
+        </>
+      )}
+
+      {activeTab === "insights" && (
+        <section className="card" style={styles.insightsSection}>
+          <h2 style={styles.insightsTitle}>AI Risk Insights</h2>
+          <p style={styles.insightsSubtitle}>Simulate payment risk using role-aware backend scoring.</p>
+
+          <form style={styles.formGrid} onSubmit={handlePredictRisk}>
+            <div style={styles.fieldWrap}>
+              <label htmlFor="customerId" style={styles.label}>Customer ID</label>
+              <input
+                id="customerId"
+                type="number"
+                min="1"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                style={styles.input}
+                placeholder="e.g. 101"
+              />
+            </div>
+
+            <div style={styles.fieldWrap}>
+              <label htmlFor="orderAmount" style={styles.label}>Order Amount</label>
+              <input
+                id="orderAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                value={orderAmount}
+                onChange={(e) => setOrderAmount(e.target.value)}
+                style={styles.input}
+                placeholder="e.g. 75000"
+              />
+            </div>
+
+            <div style={styles.fieldWrap}>
+              <label htmlFor="region" style={styles.label}>Region</label>
+              <select
+                id="region"
+                value={region}
+                onChange={(e) => setRegion(e.target.value)}
+                style={styles.select}
+              >
+                <option value="">Select region</option>
+                <option value="EMEA">EMEA</option>
+                <option value="AMER">AMER</option>
+                <option value="APAC">APAC</option>
+                <option value="LATAM">LATAM</option>
+              </select>
+            </div>
+
+            <div style={{ ...styles.fieldWrap, justifyContent: "flex-end" }}>
+              <button
+                type="submit"
+                style={{
+                  ...styles.button,
+                  ...(predictDisabled ? styles.buttonDisabled : {}),
+                  minWidth: 150,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+                disabled={predictDisabled}
+              >
+                {insightLoading && <span className="spinner" />}
+                {insightLoading ? "Predicting..." : "Predict Risk"}
+              </button>
+            </div>
+          </form>
+
+          {insightForbidden && (
+            <div style={{ ...styles.alert, ...styles.alertForbidden, marginTop: 14 }}>
+              Forbidden: your role is not allowed to access AI insights.
             </div>
           )}
+          {insightError && (
+            <div style={{ ...styles.alert, ...styles.alertError, marginTop: 14 }}>{insightError}</div>
+          )}
 
-          {!previewLoading && !previewForbidden && !previewError && previewRows.length === 0 && (
-            <div style={{ ...styles.alert, ...styles.alertInfo }}>No preview rows available.</div>
+          {insightResult && !insightLoading && !insightError && !insightForbidden && (
+            <article className="card" style={styles.resultCard}>
+              <div style={styles.resultHeader}>
+                <h3 style={styles.resultTitle}>Prediction Result</h3>
+                <span style={{ ...styles.riskBadge, background: badgeColor }}>{riskLevel || "Unknown"}</span>
+              </div>
+              <p style={styles.resultMeta}>
+                <strong>Probability:</strong> {Number(insightResult.probability || 0).toFixed(1)}%
+              </p>
+              <p style={styles.resultText}>{insightResult.explanation || "No explanation provided."}</p>
+            </article>
           )}
         </section>
       )}
@@ -323,7 +508,7 @@ const styles = {
   },
   header: {
     padding: 24,
-    marginBottom: 18,
+    marginBottom: 14,
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
@@ -373,6 +558,39 @@ const styles = {
     fontSize: 14,
     outline: "none",
   },
+  input: {
+    height: 42,
+    borderRadius: 12,
+    border: "1px solid #cdd6ea",
+    padding: "0 12px",
+    background: "#fff",
+    fontSize: 14,
+    outline: "none",
+    width: "100%",
+  },
+  tabBar: {
+    marginBottom: 18,
+    padding: 8,
+    display: "flex",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  tabButton: {
+    border: "1px solid #d3def6",
+    background: "#f4f7ff",
+    color: "#33528a",
+    padding: "10px 14px",
+    borderRadius: 10,
+    fontWeight: 700,
+    cursor: "pointer",
+    minWidth: 130,
+  },
+  tabButtonActive: {
+    background: "linear-gradient(135deg, #2054d7, #4f6eff)",
+    color: "#ffffff",
+    border: "1px solid transparent",
+    boxShadow: "0 10px 24px rgba(32,84,215,0.18)",
+  },
   kpiGrid: {
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     marginBottom: 18,
@@ -421,6 +639,11 @@ const styles = {
     fontWeight: 700,
     boxShadow: "0 10px 24px rgba(32,84,215,0.18)",
   },
+  buttonDisabled: {
+    opacity: 0.55,
+    cursor: "not-allowed",
+    boxShadow: "none",
+  },
   buttonSecondary: {
     background: "#e8eefc",
     color: "#193579",
@@ -468,6 +691,67 @@ const styles = {
     color: "#24355f",
     fontSize: 13,
     whiteSpace: "nowrap",
+  },
+  insightsSection: {
+    padding: 18,
+  },
+  insightsTitle: {
+    margin: 0,
+    color: "#153066",
+  },
+  insightsSubtitle: {
+    margin: "8px 0 16px",
+    color: "#5c6b8a",
+    fontSize: 14,
+  },
+  formGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 14,
+    alignItems: "end",
+  },
+  fieldWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  resultCard: {
+    marginTop: 16,
+    padding: 16,
+    background: "#fbfdff",
+    border: "1px solid #dbe8ff",
+    boxShadow: "0 10px 20px rgba(15, 23, 42, 0.05)",
+  },
+  resultHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    flexWrap: "wrap",
+    marginBottom: 10,
+  },
+  resultTitle: {
+    margin: 0,
+    color: "#193579",
+  },
+  riskBadge: {
+    color: "#ffffff",
+    padding: "6px 12px",
+    borderRadius: 999,
+    fontSize: 13,
+    fontWeight: 700,
+    letterSpacing: 0.2,
+  },
+  resultMeta: {
+    margin: "0 0 10px",
+    color: "#2a3f6f",
+    fontSize: 14,
+  },
+  resultText: {
+    margin: 0,
+    color: "#42587f",
+    lineHeight: 1.6,
+    fontSize: 14,
   },
   alert: {
     borderRadius: 12,
