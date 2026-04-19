@@ -1,65 +1,120 @@
-# Mock SAP Business Data Cloud O2C
+# Mock SAP Business Data Cloud O2C Platform
 
-A mock SAP Business Data Cloud order-to-cash (O2C) project with:
+A full-stack mock implementation of an SAP Business Data Cloud Order-to-Cash (O2C) workflow for demo, prototyping, and academic submission.
 
-- Synthetic O2C data generation
-- Flask semantic API with role-based access control and audit logging
-- React frontend dashboard with Data Catalog, AI Insights, and Audit Log views
+The project combines:
 
-## Project Structure
+- Synthetic but relationally consistent O2C dataset generation
+- Flask-based semantic API with RBAC, governance endpoints, and audit trail
+- React dashboard with Data Catalog, AI Risk Insights, and Audit Log views
 
-- `generate_mock_data.py` - builds the synthetic CSV dataset in `data/`
-- `app.py` - Flask backend API
-- `frontend/src/App.jsx` - React dashboard UI
-- `data/` - generated CSV files used by the backend
+## Solution Overview
 
-## Features
+This repository simulates a lightweight BDC-style data product layer where different business roles can:
 
-### Data Generator
-Creates six related CSV files with referential integrity:
+- Discover and preview curated O2C data products
+- Trigger O2C process simulation endpoints
+- Run deterministic AI-like payment risk scoring
+- Monitor API access through a governance-friendly audit log
 
-- `customers.csv`
-- `materials.csv`
-- `sales_orders.csv`
-- `deliveries.csv`
-- `invoices.csv`
-- `payments.csv`
+## Architecture
 
-### Backend API
-The Flask app exposes:
+### Backend
 
-- `GET /` - service info
-- `GET /health` - health check
-- `GET /api/dataproducts` - catalog of available data products
-- `GET /api/dataproducts/<product_name>` - preview rows for a product
-- `GET /api/dataproducts/<product_name>/schema` - column schema for a product
-- `POST /api/o2c/execute/<step>` - simulated O2C workflow step
-- `POST /api/insights/payment-risk` - deterministic AI-style payment risk insight
-- `GET /api/audit` - audit trail viewer
+- Framework: Flask
+- Data access: pandas CSV loading
+- Security model: role-based access via `X-User-Role`
+- Cross-origin support: CORS-enabled for local frontend development
 
-All API routes expect an `X-User-Role` header with one of:
+### Frontend
 
-- `admin`
-- `sales`
-- `finance`
+- Framework: React (Vite)
+- UI pattern: single-page tabbed dashboard
+- Data layer: native `fetch` with backend host fallback strategy
 
-### Frontend UI
-The React dashboard includes:
+### Data Layer
 
-- Role selector
-- Data Catalog tab with KPI cards, search, product cards, and preview tables
-- AI Insights tab with a payment risk form and result card
-- Audit Log tab with searchable audit entries and refresh support
+- Generator: `generate_mock_data.py`
+- Storage: local CSVs under `data/`
+- Domain entities:
+	- customers
+	- materials
+	- sales orders
+	- deliveries
+	- invoices
+	- payments
 
-## Prerequisites
+## Repository Layout
+
+```text
+.
+|- app.py
+|- generate_mock_data.py
+|- data/
+|  |- customers.csv
+|  |- materials.csv
+|  |- sales_orders.csv
+|  |- deliveries.csv
+|  |- invoices.csv
+|  |- payments.csv
+|- frontend/
+|  |- src/
+|     |- App.jsx
+```
+
+## API Surface
+
+All `/api/*` routes require a valid role header:
+
+```http
+X-User-Role: admin | sales | finance
+```
+
+### Service Endpoints
+
+- `GET /` - service metadata and route list
+- `GET /health` - runtime health check
+
+### Data Product Endpoints
+
+- `GET /api/dataproducts`
+- `GET /api/dataproducts/<product_name>`
+- `GET /api/dataproducts/<product_name>/schema`
+
+### Workflow and Insights
+
+- `POST /api/o2c/execute/<step>`
+- `POST /api/insights/payment-risk`
+
+### Governance
+
+- `GET /api/audit`
+
+## Frontend Capabilities
+
+- Role switcher for RBAC-aware behavior
+- Data Catalog tab:
+	- KPI cards
+	- searchable product cards
+	- preview table with filtering
+- AI Insights tab:
+	- payment risk form
+	- probability + explanation output
+- Audit Log tab:
+	- refreshable, searchable governance table
+	- fetch timestamp indicator
+
+## Local Setup
+
+## Requirements
 
 - Python 3.10+
 - Node.js 18+
-- `pip` for Python packages
+- npm
 
-## Backend Setup
+### 1. Backend
 
-From the project root:
+From project root:
 
 ```bash
 pip install -r requirements.txt
@@ -67,11 +122,11 @@ python generate_mock_data.py
 python app.py
 ```
 
-The backend runs on `http://localhost:5000`.
+Backend URL: `http://localhost:5000`
 
-## Frontend Setup
+### 2. Frontend
 
-Open a second terminal:
+In a new terminal:
 
 ```bash
 cd frontend
@@ -79,22 +134,36 @@ npm install
 npm run dev
 ```
 
-The frontend runs on `http://localhost:5173`.
+Frontend URL: `http://localhost:5173`
 
-## Usage
+## Quick Validation
 
-1. Start the backend.
-2. Start the frontend.
-3. Open the frontend in your browser.
-4. Choose a role from the dropdown.
-5. Explore the Data Catalog, AI Insights, and Audit Log tabs.
+After both services are running:
 
-## Notes
+1. Open the frontend and select `admin` role.
+2. Confirm Data Catalog and KPIs load.
+3. Run AI Insight with sample input:
+	 - customer_id: `101`
+	 - order_amount: `75000`
+	 - region: `APAC`
+4. Open Audit Log tab and verify recent API events appear.
 
-- If the catalog appears empty, rerun `python generate_mock_data.py` from the project root.
-- The frontend is configured to call the backend on `http://localhost:5000`, with fallbacks for `127.0.0.1` and the current browser host.
-- The AI risk insight is rule-based and deterministic for demo purposes.
+## Troubleshooting
 
-## Submission
+- `Cannot reach backend API`:
+	- Ensure Flask is running on port `5000`.
+	- Verify frontend is opened from `http://localhost:5173`.
+- Empty catalog:
+	- Regenerate files via `python generate_mock_data.py`.
+- Role-based 403 responses:
+	- Ensure `X-User-Role` is one of `admin`, `sales`, or `finance`.
 
-This repository is ready for local demo and submission as a mock SAP BDC O2C showcase.
+## Submission Readiness
+
+This project is submission-ready for a mock SAP BDC O2C demonstration, including:
+
+- reproducible data generation,
+- role-aware backend APIs,
+- AI insight simulation,
+- governance/audit visibility,
+- polished frontend experience.
