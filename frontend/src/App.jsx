@@ -6,7 +6,11 @@ npm run dev
 
 import { useEffect, useState } from "react";
 
-const API_BASE = "http://localhost:5000";
+const API_BASES = (() => {
+  const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+  const candidates = [`http://${host}:5000`, "http://localhost:5000", "http://127.0.0.1:5000"];
+  return [...new Set(candidates)];
+})();
 
 function App() {
   const [role, setRole] = useState("admin");
@@ -36,15 +40,27 @@ function App() {
   const [insightForbidden, setInsightForbidden] = useState(false);
   const [insightResult, setInsightResult] = useState(null);
 
-  const apiFetch = (path, options = {}) => {
-    return fetch(`${API_BASE}${path}`, {
+  const apiFetch = async (path, options = {}) => {
+    const requestOptions = {
       ...options,
       headers: {
         "Content-Type": "application/json",
         "X-User-Role": role,
         ...(options.headers || {}),
       },
-    });
+    };
+
+    let lastError = null;
+
+    for (const base of API_BASES) {
+      try {
+        return await fetch(`${base}${path}`, requestOptions);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw lastError || new Error("Network request failed");
   };
 
   const loadDashboard = async () => {
@@ -124,7 +140,11 @@ function App() {
       setAvgNetValue(avgValue);
       setLatePaymentsPct(latePct);
     } catch (error) {
-      setProductsError(error.message || "Unexpected error while loading dashboard.");
+      const message =
+        error instanceof TypeError
+          ? "Cannot reach backend API. Start Flask on http://localhost:5000 and try again."
+          : error.message || "Unexpected error while loading dashboard.";
+      setProductsError(message);
       setProducts([]);
       setTotalOrders("--");
       setLatePaymentsPct("--");
@@ -163,7 +183,11 @@ function App() {
 
       setPreviewRows(Array.isArray(payload?.data?.preview) ? payload.data.preview : []);
     } catch (error) {
-      setPreviewError(error.message || "Unexpected error while loading preview.");
+      const message =
+        error instanceof TypeError
+          ? "Cannot reach backend API. Start Flask on http://localhost:5000 and try again."
+          : error.message || "Unexpected error while loading preview.";
+      setPreviewError(message);
       setPreviewRows([]);
     } finally {
       setPreviewLoading(false);
@@ -205,7 +229,11 @@ function App() {
 
       setInsightResult(payload.data || null);
     } catch (error) {
-      setInsightError(error.message || "Unexpected error while predicting risk.");
+      const message =
+        error instanceof TypeError
+          ? "Cannot reach backend API. Start Flask on http://localhost:5000 and try again."
+          : error.message || "Unexpected error while predicting risk.";
+      setInsightError(message);
     } finally {
       setInsightLoading(false);
     }
@@ -234,6 +262,11 @@ function App() {
     <div style={styles.page}>
       <style>{`
         * { box-sizing: border-box; }
+        :root {
+          color-scheme: light;
+          color: #172033;
+          background-color: #eef2f7;
+        }
         body {
           margin: 0;
           background: radial-gradient(circle at top left, #eef4ff 0%, #f7f8fc 40%, #eef2f7 100%);

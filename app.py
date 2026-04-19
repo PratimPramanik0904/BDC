@@ -179,6 +179,10 @@ def enforce_role_header():
     if not request.path.startswith("/api"):
         return None
 
+    # Let CORS preflight pass without RBAC headers; actual request is still validated.
+    if request.method == "OPTIONS":
+        return None
+
     role = _get_role()
     g.user_role = role
 
