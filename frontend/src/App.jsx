@@ -15,6 +15,10 @@ const API_BASES = (() => {
 function App() {
   const [role, setRole] = useState("admin");
   const [activeTab, setActiveTab] = useState("catalog");
+  const [nowTime, setNowTime] = useState(() => new Date().toLocaleTimeString());
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [previewSearch, setPreviewSearch] = useState("");
+  const [auditSearch, setAuditSearch] = useState("");
 
   const [products, setProducts] = useState([]);
   const [productsLoading, setProductsLoading] = useState(false);
@@ -39,6 +43,12 @@ function App() {
   const [insightError, setInsightError] = useState("");
   const [insightForbidden, setInsightForbidden] = useState(false);
   const [insightResult, setInsightResult] = useState(null);
+
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState("");
+  const [auditForbidden, setAuditForbidden] = useState(false);
+  const [auditLastFetchedAt, setAuditLastFetchedAt] = useState("");
 
   const apiFetch = async (path, options = {}) => {
     const requestOptions = {
@@ -239,7 +249,58 @@ function App() {
     }
   };
 
+  const loadAuditLogs = async () => {
+    setAuditLoading(true);
+    setAuditError("");
+    setAuditForbidden(false);
+
+    try {
+      const response = await apiFetch("/api/audit");
+      const payload = await response.json();
+
+      if (response.status === 403) {
+        setAuditForbidden(true);
+        setAuditLogs([]);
+        return;
+      }
+
+      if (!response.ok || payload.status !== "success") {
+        throw new Error(payload.message || "Failed to load audit logs.");
+      }
+
+      const logs = Array.isArray(payload?.data?.logs) ? payload.data.logs : [];
+      setAuditLogs(logs);
+      setAuditLastFetchedAt(new Date().toLocaleTimeString());
+    } catch (error) {
+      const message =
+        error instanceof TypeError
+          ? "Cannot reach backend API. Start Flask on http://localhost:5000 and try again."
+          : error.message || "Unexpected error while loading audit logs.";
+      setAuditError(message);
+      setAuditLogs([]);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
   const previewColumns = previewRows.length > 0 ? Object.keys(previewRows[0]) : [];
+  const filteredProducts = products.filter((product) =>
+    product.name.toLowerCase().includes(catalogSearch.toLowerCase())
+  );
+
+  const filteredPreviewRows = previewRows.filter((row) => {
+    if (!previewSearch.trim()) return true;
+    const term = previewSearch.toLowerCase();
+    return Object.values(row).some((value) => String(value ?? "").toLowerCase().includes(term));
+  });
+
+  const filteredAuditLogs = auditLogs.filter((entry) => {
+    if (!auditSearch.trim()) return true;
+    const term = auditSearch.toLowerCase();
+    return [entry.timestamp, entry.endpoint, entry.method, entry.user_role, entry.status_code]
+      .map((v) => String(v ?? "").toLowerCase())
+      .some((v) => v.includes(term));
+  });
 
   const predictDisabled = !customerId || !orderAmount || !region || insightLoading;
 
@@ -258,6 +319,21 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNowTime(new Date().toLocaleTimeString());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "audit") {
+      loadAuditLogs();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, role]);
+
   return (
     <div style={styles.page}>
       <style>{`
@@ -266,16 +342,23 @@ function App() {
           color-scheme: light;
           color: #172033;
           background-color: #eef2f7;
+          --ink: #172033;
+          --muted: #5c6b8a;
+          --brand: #2054d7;
+          --brand-2: #4f6eff;
+          --surface: rgba(255,255,255,0.92);
+          --line: rgba(221,228,240,0.95);
         }
         body {
           margin: 0;
           background: radial-gradient(circle at top left, #eef4ff 0%, #f7f8fc 40%, #eef2f7 100%);
           font-family: Inter, "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
           color: #172033;
+          min-height: 100vh;
         }
         .card {
-          background: rgba(255,255,255,0.92);
-          border: 1px solid rgba(221,228,240,0.95);
+          background: var(--surface);
+          border: 1px solid var(--line);
           border-radius: 16px;
           box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
           backdrop-filter: blur(8px);
@@ -283,6 +366,27 @@ function App() {
         .grid {
           display: grid;
           gap: 16px;
+        }
+        .page-orb {
+          position: fixed;
+          width: 420px;
+          height: 420px;
+          border-radius: 999px;
+          filter: blur(58px);
+          z-index: -1;
+          opacity: 0.28;
+          animation: drift 16s ease-in-out infinite;
+        }
+        .orb-a {
+          top: -120px;
+          left: -90px;
+          background: radial-gradient(circle, #6da7ff 0%, #b8d4ff 70%, transparent 100%);
+        }
+        .orb-b {
+          bottom: -160px;
+          right: -120px;
+          background: radial-gradient(circle, #8ba9ff 0%, #c8d7ff 72%, transparent 100%);
+          animation-delay: -8s;
         }
         .spinner {
           width: 16px;
@@ -295,11 +399,20 @@ function App() {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        @keyframes drift {
+          0% { transform: translate3d(0, 0, 0); }
+          50% { transform: translate3d(18px, -14px, 0); }
+          100% { transform: translate3d(0, 0, 0); }
+        }
         @media (max-width: 900px) {
           .kpi-grid { grid-template-columns: 1fr !important; }
           .product-grid { grid-template-columns: 1fr !important; }
+          .header-meta { width: 100%; justify-content: flex-start !important; }
         }
       `}</style>
+
+      <div className="page-orb orb-a" />
+      <div className="page-orb orb-b" />
 
       <header className="card" style={styles.header}>
         <div>
@@ -308,18 +421,21 @@ function App() {
           <p style={styles.subtitle}>Mock data product catalog and semantic preview layer</p>
         </div>
 
-        <div style={styles.roleBox}>
-          <label htmlFor="role" style={styles.label}>Role</label>
-          <select
-            id="role"
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            style={styles.select}
-          >
-            <option value="admin">admin</option>
-            <option value="sales">sales</option>
-            <option value="finance">finance</option>
-          </select>
+        <div className="header-meta" style={styles.headerMeta}>
+          <div style={styles.liveChip}>Live: {nowTime}</div>
+          <div style={styles.roleBox}>
+            <label htmlFor="role" style={styles.label}>Role</label>
+            <select
+              id="role"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              style={styles.select}
+            >
+              <option value="admin">admin</option>
+              <option value="sales">sales</option>
+              <option value="finance">finance</option>
+            </select>
+          </div>
         </div>
       </header>
 
@@ -338,10 +454,33 @@ function App() {
         >
           AI Insights
         </button>
+        <button
+          type="button"
+          style={{ ...styles.tabButton, ...(activeTab === "audit" ? styles.tabButtonActive : {}) }}
+          onClick={() => setActiveTab("audit")}
+        >
+          Audit Log
+        </button>
       </nav>
 
       {activeTab === "catalog" && (
         <>
+          <section className="card" style={styles.toolbarCard}>
+            <div style={styles.toolbarLeft}>
+              <input
+                type="text"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder="Search data products..."
+                style={styles.input}
+              />
+            </div>
+            <div style={styles.toolbarRight}>
+              <div style={styles.statPill}>Products: {filteredProducts.length}</div>
+              <div style={styles.statPill}>Role: {role}</div>
+            </div>
+          </section>
+
           <section className="grid kpi-grid" style={styles.kpiGrid}>
             <div className="card" style={styles.kpiCard}>
               <div style={styles.kpiLabel}>Total Orders</div>
@@ -365,7 +504,7 @@ function App() {
 
           {!selectedProduct && !productsLoading && !productsForbidden && (
             <section className="grid product-grid" style={styles.productGrid}>
-              {products.map((product) => (
+              {filteredProducts.map((product) => (
                 <article key={product.name} className="card" style={styles.productCard}>
                   <h3 style={styles.productTitle}>{product.name}</h3>
                   <p style={styles.productMeta}><strong>Rows:</strong> {product.row_count}</p>
@@ -375,7 +514,7 @@ function App() {
                   </button>
                 </article>
               ))}
-              {products.length === 0 && (
+              {filteredProducts.length === 0 && (
                 <div style={{ ...styles.alert, ...styles.alertInfo }}>No data products available for this role.</div>
               )}
             </section>
@@ -404,7 +543,20 @@ function App() {
               )}
               {previewError && <div style={{ ...styles.alert, ...styles.alertError }}>{previewError}</div>}
 
-              {!previewLoading && !previewForbidden && !previewError && previewRows.length > 0 && (
+              {!previewLoading && !previewForbidden && !previewError && (
+                <div style={styles.previewToolbar}>
+                  <input
+                    type="text"
+                    value={previewSearch}
+                    onChange={(e) => setPreviewSearch(e.target.value)}
+                    placeholder="Filter preview rows..."
+                    style={styles.input}
+                  />
+                  <div style={styles.statPill}>Rows: {filteredPreviewRows.length}</div>
+                </div>
+              )}
+
+              {!previewLoading && !previewForbidden && !previewError && filteredPreviewRows.length > 0 && (
                 <div style={styles.tableWrap}>
                   <table style={styles.table}>
                     <thead>
@@ -415,7 +567,7 @@ function App() {
                       </tr>
                     </thead>
                     <tbody>
-                      {previewRows.slice(0, 10).map((row, index) => (
+                      {filteredPreviewRows.slice(0, 10).map((row, index) => (
                         <tr key={index}>
                           {previewColumns.map((column) => (
                             <td key={`${index}-${column}`} style={styles.td}>
@@ -429,7 +581,7 @@ function App() {
                 </div>
               )}
 
-              {!previewLoading && !previewForbidden && !previewError && previewRows.length === 0 && (
+              {!previewLoading && !previewForbidden && !previewError && filteredPreviewRows.length === 0 && (
                 <div style={{ ...styles.alert, ...styles.alertInfo }}>No preview rows available.</div>
               )}
             </section>
@@ -524,8 +676,107 @@ function App() {
               <p style={styles.resultMeta}>
                 <strong>Probability:</strong> {Number(insightResult.probability || 0).toFixed(1)}%
               </p>
+              <div style={styles.meterTrack}>
+                <div
+                  style={{
+                    ...styles.meterFill,
+                    width: `${Math.max(0, Math.min(100, Number(insightResult.probability || 0)))}%`,
+                    background: badgeColor,
+                  }}
+                />
+              </div>
               <p style={styles.resultText}>{insightResult.explanation || "No explanation provided."}</p>
             </article>
+          )}
+        </section>
+      )}
+
+      {activeTab === "audit" && (
+        <section className="card" style={styles.auditSection}>
+          <div style={styles.auditHeader}>
+            <div>
+              <h2 style={styles.auditTitle}>Audit & Governance</h2>
+              <p style={styles.auditSubtitle}>Track API usage events for role-based governance.</p>
+            </div>
+
+            <div style={styles.auditActions}>
+              <input
+                type="text"
+                value={auditSearch}
+                onChange={(e) => setAuditSearch(e.target.value)}
+                placeholder="Search logs..."
+                style={{ ...styles.input, minWidth: 220 }}
+              />
+              <div style={styles.auditStatus}>
+                <span style={styles.auditStatusDot} />
+                {auditLastFetchedAt ? `Last fetch: ${auditLastFetchedAt}` : "Last fetch: Not fetched yet"}
+              </div>
+              <button
+                type="button"
+                onClick={loadAuditLogs}
+                disabled={auditLoading}
+                style={{
+                  ...styles.button,
+                  ...(auditLoading ? styles.buttonDisabled : {}),
+                  marginTop: 0,
+                  minWidth: 130,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
+                {auditLoading && <span className="spinner" />}
+                {auditLoading ? "Refreshing..." : "Refresh Logs"}
+              </button>
+            </div>
+          </div>
+
+          {auditLoading && <div style={{ ...styles.alert, ...styles.alertInfo }}>Loading audit logs...</div>}
+          {auditForbidden && (
+            <div style={{ ...styles.alert, ...styles.alertForbidden }}>
+              Forbidden: your role is not allowed to access audit logs.
+            </div>
+          )}
+          {auditError && <div style={{ ...styles.alert, ...styles.alertError }}>{auditError}</div>}
+
+          {!auditLoading && !auditForbidden && !auditError && filteredAuditLogs.length > 0 && (
+            <div style={{ ...styles.tableWrap, maxHeight: 430, overflowY: "auto" }}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>timestamp</th>
+                    <th style={styles.th}>endpoint</th>
+                    <th style={styles.th}>method</th>
+                    <th style={styles.th}>role</th>
+                    <th style={styles.th}>status_code</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredAuditLogs.map((entry, index) => (
+                    <tr key={`${entry.timestamp || "ts"}-${index}`}>
+                      <td style={styles.td}>{String(entry.timestamp ?? "")}</td>
+                      <td style={styles.td}>{String(entry.endpoint ?? "")}</td>
+                      <td style={styles.td}>
+                        <span style={{ ...styles.methodBadge, ...styles.methodBadgeFor(String(entry.method ?? "")) }}>
+                          {String(entry.method ?? "").toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={styles.td}>{String(entry.user_role ?? entry.role ?? "")}</td>
+                      <td style={styles.td}>
+                        <span style={{ ...styles.codeBadge, ...styles.codeBadgeFor(Number(entry.status_code ?? 0)) }}>
+                          {String(entry.status_code ?? "")}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {!auditLoading && !auditForbidden && !auditError && filteredAuditLogs.length === 0 && (
+            <div style={{ ...styles.alert, ...styles.alertInfo }}>No audit logs available.</div>
           )}
         </section>
       )}
@@ -576,6 +827,24 @@ const styles = {
     flexDirection: "column",
     gap: 8,
     minWidth: 180,
+  },
+  headerMeta: {
+    display: "flex",
+    alignItems: "flex-end",
+    gap: 12,
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+  },
+  liveChip: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "8px 12px",
+    borderRadius: 999,
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#224893",
+    background: "#eaf2ff",
+    border: "1px solid #cfe0ff",
   },
   label: {
     fontSize: 13,
@@ -628,8 +897,37 @@ const styles = {
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     marginBottom: 18,
   },
+  toolbarCard: {
+    marginBottom: 14,
+    padding: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  toolbarLeft: {
+    flex: "1 1 260px",
+  },
+  toolbarRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  statPill: {
+    background: "#eef5ff",
+    border: "1px solid #d6e7ff",
+    color: "#2a4d8f",
+    borderRadius: 999,
+    padding: "7px 10px",
+    fontSize: 12,
+    fontWeight: 700,
+  },
   kpiCard: {
     padding: 18,
+    position: "relative",
+    overflow: "hidden",
   },
   kpiLabel: {
     color: "#5d6b89",
@@ -697,6 +995,14 @@ const styles = {
   previewTitle: {
     margin: 0,
     color: "#153066",
+  },
+  previewToolbar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    marginBottom: 10,
   },
   tableWrap: {
     overflowX: "auto",
@@ -785,6 +1091,94 @@ const styles = {
     color: "#42587f",
     lineHeight: 1.6,
     fontSize: 14,
+  },
+  meterTrack: {
+    height: 10,
+    borderRadius: 999,
+    background: "#e8eef7",
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  meterFill: {
+    height: "100%",
+    borderRadius: 999,
+    transition: "width 240ms ease",
+  },
+  auditSection: {
+    padding: 18,
+  },
+  auditHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 14,
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  auditTitle: {
+    margin: 0,
+    color: "#153066",
+  },
+  auditSubtitle: {
+    margin: "8px 0 0",
+    color: "#5c6b8a",
+    fontSize: 14,
+  },
+  auditActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexWrap: "wrap",
+  },
+  auditStatus: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 8,
+    fontSize: 13,
+    color: "#43597f",
+    background: "#eff5ff",
+    border: "1px solid #dbe8ff",
+    borderRadius: 999,
+    padding: "7px 10px",
+  },
+  auditStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    background: "#22c55e",
+    boxShadow: "0 0 0 2px rgba(34, 197, 94, 0.22)",
+    flexShrink: 0,
+  },
+  methodBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 999,
+    padding: "4px 9px",
+    fontSize: 11,
+    fontWeight: 700,
+  },
+  codeBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    borderRadius: 999,
+    padding: "4px 9px",
+    fontSize: 11,
+    fontWeight: 700,
+  },
+  methodBadgeFor: (method) => {
+    const m = String(method).toUpperCase();
+    if (m === "GET") return { background: "#e8f3ff", color: "#1f5c9a" };
+    if (m === "POST") return { background: "#eaf9ee", color: "#1f7a3f" };
+    if (m === "PUT" || m === "PATCH") return { background: "#fff4e8", color: "#9a5b18" };
+    if (m === "DELETE") return { background: "#ffecec", color: "#a12a2a" };
+    return { background: "#edf1f7", color: "#4b5d7e" };
+  },
+  codeBadgeFor: (code) => {
+    if (code >= 200 && code < 300) return { background: "#eaf9ee", color: "#1f7a3f" };
+    if (code >= 300 && code < 400) return { background: "#eef5ff", color: "#2456a7" };
+    if (code >= 400 && code < 500) return { background: "#fff4e8", color: "#9a5b18" };
+    if (code >= 500) return { background: "#ffecec", color: "#a12a2a" };
+    return { background: "#edf1f7", color: "#4b5d7e" };
   },
   alert: {
     borderRadius: 12,
