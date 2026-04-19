@@ -94,6 +94,8 @@ def _normalize_for_json(df: pd.DataFrame) -> list[dict[str, Any]]:
 
 
 def _load_data_products() -> None:
+    DATA_PRODUCTS.clear()
+    LAST_UPDATED.clear()
     missing_files = []
 
     for product_name, file_name in PRODUCT_FILES.items():
@@ -107,6 +109,11 @@ def _load_data_products() -> None:
 
     if missing_files:
         app.logger.warning("Missing CSV files in data directory: %s", ", ".join(missing_files))
+
+
+def _ensure_data_products_loaded() -> None:
+    if not DATA_PRODUCTS:
+        _load_data_products()
 
 
 def _get_role() -> str | None:
@@ -124,6 +131,45 @@ def _is_allowed_for_step(role: str, step: str) -> bool:
     if role == "admin":
         return True
     return role in STEP_ACCESS.get(step, set())
+
+
+def _compute_payment_risk(customer_id: int, order_amount: float, region: str) -> dict[str, Any]:
+    probability = 20.0
+    explanation_parts = ["Base risk score starts at 20%."]
+
+    normalized_region = region.strip().upper()
+    high_risk_regions = {"APAC", "LATAM"}
+
+    if order_amount > 50000:
+        probability += 30
+        explanation_parts.append("Order amount exceeds 50,000, adding 30 points.")
+
+    if normalized_region in high_risk_regions:
+        probability += 20
+        explanation_parts.append(f"Region {normalized_region} is higher risk, adding 20 points.")
+
+    if order_amount > 100000 and normalized_region in high_risk_regions:
+        probability += 25
+        explanation_parts.append("Large order in a higher-risk region adds an additional 25 points.")
+
+    probability = max(5.0, min(95.0, probability))
+
+    if probability < 40:
+        risk_level = "Low"
+    elif probability <= 70:
+        risk_level = "Medium"
+    else:
+        risk_level = "High"
+
+    explanation_parts.append(
+        f"Final risk score for customer {customer_id} is {probability:.1f}% ({risk_level})."
+    )
+
+    return {
+        "risk_level": risk_level,
+        "probability": round(probability, 1),
+        "explanation": " ".join(explanation_parts),
+    }
 
 
 @app.before_request
@@ -184,6 +230,7 @@ def root():
                 "/api/dataproducts/<product_name>",
                 "/api/dataproducts/<product_name>/schema",
                 "/api/o2c/execute/<step>",
+                "/api/insights/payment-risk",
                 "/api/audit",
             ],
         },
@@ -199,6 +246,7 @@ def health():
 @app.get("/api/dataproducts")
 def list_dataproducts():
     role = g.user_role
+    _ensure_data_products_loaded()
 
     products = []
     for product_name, df in DATA_PRODUCTS.items():
@@ -217,6 +265,7 @@ def list_dataproducts():
 @app.get("/api/dataproducts/<product_name>/schema")
 def get_dataproduct_schema(product_name: str):
     role = g.user_role
+    _ensure_data_products_loaded()
 
     if product_name not in DATA_PRODUCTS:
         return _api_response(data=None, message=f"Data product '{product_name}' not found", http_status=404, status="error")
@@ -233,6 +282,7 @@ def get_dataproduct_schema(product_name: str):
 @app.get("/api/dataproducts/<product_name>")
 def preview_dataproduct(product_name: str):
     role = g.user_role
+    _ensure_data_products_loaded()
 
     if product_name not in DATA_PRODUCTS:
         return _api_response(data=None, message=f"Data product '{product_name}' not found", http_status=404, status="error")
@@ -279,6 +329,45 @@ def execute_o2c_step(step: str):
         http_status=400,
         status="error",
     )
+
+
+@app.post("/api/insights/payment-risk")
+def payment_risk_insight():
+    if not request.is_json:
+        return _api_response(data=None, message="Invalid or missing JSON payload", http_status=400, status="error")
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return _api_response(data=None, message="Invalid or missing JSON payload", http_status=400, status="error")
+
+    required_fields = {"customer_id", "order_amount", "region"}
+    missing_fields = sorted(field for field in required_fields if field not in payload)
+    if missing_fields:
+        return _api_response(
+            data={"missing_fields": missing_fields},
+            message="Missing required fields",
+            http_status=400,
+            status="error",
+        )
+
+    try:
+        customer_id = int(payload["customer_id"])
+        order_amount = float(payload["order_amount"])
+        region = str(payload["region"]).strip()
+        if not region:
+            raise ValueError("region cannot be empty")
+    except (TypeError, ValueError):
+        return _api_response(
+            data=None,
+            message="Invalid field types for customer_id, order_amount, or region",
+            http_status=400,
+            status="error",
+        )
+
+    insight = _compute_payment_risk(customer_id, order_amount, region)
+    insight["timestamp"] = _utc_now_iso()
+
+    return jsonify({"status": "success", "data": insight})
 
 
 @app.get("/api/audit")

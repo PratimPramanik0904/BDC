@@ -1,0 +1,101 @@
+customer_id,customer_name,region,credit_limit,payment_terms
+C0001,"Rodriguez, Figueroa and Sanchez",North,76225,Net 45
+C0002,Doyle Ltd,South,284053,Net 15
+C0003,"Mcclain, Miller and Henderson",North,759570,Net 45
+C0004,Davis and Sons,Central,141161,Net 30
+C0005,"Guzman, Hoffman and Baldwin",North,81244,Net 15
+C0006,"Gardner, Robinson and Lawrence",South,579903,Net 30
+C0007,Blake and Sons,Central,258496,Net 45
+C0008,"Henderson, Ramirez and Lewis",Central,489898,Net 30
+C0009,Garcia-James,Central,341704,Net 45
+C0010,Abbott-Munoz,North,845667,Net 45
+C0011,Blair PLC,West,406778,Net 30
+C0012,Dudley Group,South,850581,Net 30
+C0013,Arnold Ltd,North,448382,Net 15
+C0014,"Mcclure, Ward and Lee",East,683052,Net 30
+C0015,Williams and Sons,North,815179,Net 30
+C0016,Galloway-Wyatt,North,446922,Net 15
+C0017,James Group,East,919693,Net 30
+C0018,"Flowers, Martin and Kelly",East,655397,Net 30
+C0019,"Adams, Zuniga and Wong",North,98050,Net 45
+C0020,"Reid, Ferguson and Sanchez",East,133667,Net 45
+C0021,Gray-Mayo,North,448591,Net 30
+C0022,"Watts, Robinson and Nguyen",East,220555,Net 30
+C0023,Perez Inc,South,752729,Net 30
+C0024,Morales-Jones,North,688720,Net 30
+C0025,"Walter, Edwards and Rios",Central,814544,Net 30
+C0026,Wilkerson-Day,West,447887,Net 30
+C0027,Baker and Sons,Central,280283,Net 45
+C0028,"Hoffman, Baker and Richards",North,290174,Net 45
+C0029,"Ross, Robinson and Bright",East,470651,Net 30
+C0030,"Snyder, Campos and Callahan",South,644731,Net 45
+C0031,Burton Ltd,East,272955,Net 45
+C0032,Carlson-Cruz,West,977657,Net 60
+C0033,"Ferrell, Rice and Maddox",West,199811,Net 30
+C0034,Frazier Inc,South,831177,Net 30
+C0035,"Dyer, Potter and Mack",East,833300,Net 30
+C0036,Rodriguez-Graham,Central,468801,Net 30
+C0037,Smith-Bowen,South,584277,Net 30
+C0038,"Baker, Mason and White",North,952931,Net 15
+C0039,Harrell LLC,South,880555,Net 45
+C0040,"Romero, Gonzalez and Brooks",Central,116613,Net 30
+C0041,Ryan PLC,Central,540785,Net 30
+C0042,George Group,Central,952592,Net 60
+C0043,Rodriguez LLC,North,764825,Net 45
+C0044,Allen-Allen,East,855934,Net 30
+C0045,"Arroyo, Miller and Tucker",North,357757,Net 30
+C0046,Spence PLC,West,53402,Net 60
+C0047,Anderson Group,East,574902,Net 45
+C0048,"Martin, Rose and Obrien",Central,161579,Net 45
+C0049,Hickman Ltd,East,932554,Net 30
+C0050,"Harris, Collins and Carney",Central,258573,Net 30
+C0051,"Brooks, Lam and Hayes",South,615579,Net 60
+C0052,Walker LLC,Central,50599,Net 30
+C0053,Chapman and Sons,West,70422,Net 15
+C0054,"Robinson, Jones and Welch",East,971406,Net 60
+C0055,Jones Inc,East,301083,Net 15
+C0056,Jones-Young,Central,132582,Net 15
+C0057,"Washington, Ryan and Cummings",West,905662,Net 15
+C0058,"Johnston, Sanchez and Kennedy",Central,853035,Net 15
+C0059,Lee-Davis,West,626510,Net 30
+C0060,Gomez-Jenkins,Central,964812,Net 30
+C0061,"Brown, Valdez and Lucas",South,615492,Net 45
+C0062,Powell LLC,South,797581,Net 30
+C0063,Wright and Sons,East,509381,Net 45
+C0064,"West, Henderson and Ramirez",West,176882,Net 30
+C0065,Baxter Inc,North,404508,Net 15
+C0066,Morton-Chase,Central,291292,Net 30
+C0067,Williams PLC,North,124441,Net 45
+C0068,Novak and Sons,North,290062,Net 15
+C0069,Russell Group,North,951393,Net 30
+C0070,Hancock Inc,Central,299565,Net 30
+C0071,Gray Group,West,274643,Net 30
+C0072,House-Glover,Central,654201,Net 30
+C0073,Henderson-Bernard,West,896721,Net 30
+C0074,"Stanley, Tucker and Lee",North,151639,Net 45
+C0075,Novak PLC,East,494154,Net 30
+C0076,"Daniels, Adkins and Brown",North,756073,Net 45
+C0077,"Woods, Calhoun and Schmidt",North,113556,Net 30
+C0078,Yu Inc,East,889482,Net 45
+C0079,Jones Inc,South,250896,Net 30
+C0080,"Hensley, Powell and David",West,196991,Net 30
+C0081,"Sanchez, Wheeler and Harvey",East,535100,Net 30
+C0082,Sandoval-Cunningham,North,514656,Net 45
+C0083,Donovan-Harris,Central,152664,Net 15
+C0084,"Edwards, Baker and Anderson",Central,926638,Net 15
+C0085,"Evans, Stewart and Walton",North,840170,Net 45
+C0086,Smith PLC,South,476156,Net 30
+C0087,"Ferrell, Jones and Lewis",South,956651,Net 30
+C0088,Anderson-Bailey,North,222634,Net 30
+C0089,Suarez LLC,West,328085,Net 60
+C0090,Moore-Bass,West,349105,Net 30
+C0091,"Turner, Riggs and Roman",Central,744022,Net 45
+C0092,"Smith, Montoya and Evans",South,249122,Net 30
+C0093,"Garcia, Humphrey and Baker",North,657314,Net 45
+C0094,Newton and Sons,North,834309,Net 30
+C0095,Campbell-Clark,North,662554,Net 30
+C0096,Harris-Walters,Central,215080,Net 15
+C0097,Wagner-King,Central,134002,Net 45
+C0098,Davis Group,North,673939,Net 15
+C0099,Williams-Cook,South,473389,Net 15
+C0100,Walsh LLC,Central,308175,Net 30
